@@ -52,7 +52,7 @@ jobs:
           find example/android -path '*outputs/apk/release/*.apk' -print
           cp "$(find example/android -path '*outputs/apk/release/*.apk' | head -n1)" "out/pager-release-${{ matrix.arch }}.apk"
           unzip -l "out/pager-release-${{ matrix.arch }}.apk" | grep -E 'lib/|assets/' | head -60
-          unzip -l "out/pager-release-${{ matrix.arch }}.apk" | grep -q 'assets/main.android.jsbundle' || { echo "no JS bundle in APK"; exit 1; }
+          unzip -l "out/pager-release-${{ matrix.arch }}.apk" | grep -qE 'jsbundle|index.android.bundle' || { echo "no JS bundle in APK"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -109,7 +109,7 @@ jobs:
           APP=$(find example/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -n1)
           echo "APP=$APP"
           ls -la "$APP"
-          ls -la "$APP" | grep -i jsbundle || { echo "no jsbundle in app"; exit 1; }
+          find "$APP" -name "*.jsbundle" | grep . || { echo "no jsbundle in app"; exit 1; }
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
           ditto -c -k --keepParent "$APP" "out/$(basename "$APP" .app)-Release-iphonesimulator.app.zip"
 

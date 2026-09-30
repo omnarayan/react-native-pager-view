@@ -32,6 +32,16 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      # react-native-test-app does not bundle JS itself: it embeds the files listed under
+      # app.json "resources" (dist/main.android.jsbundle + dist/res). Their android.yml runs
+      # `bun run build:android` (which uses --dev true); we bundle with --dev false for a true Release.
+      - name: Bundle JS (Release, dev=false)
+        working-directory: example
+        run: |
+          bun mkdist
+          bunx react-native bundle --entry-file index.js --platform android --dev false --bundle-output dist/main.android.jsbundle --assets-dest dist/res
+          ls -la dist
+
       - name: Build Release APK (${{ matrix.arch }})
         working-directory: example/android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=${{ matrix.arch }} --no-daemon -Dorg.gradle.jvmargs=-Xmx4g
@@ -42,6 +52,7 @@ jobs:
           find example/android -path '*outputs/apk/release/*.apk' -print
           cp "$(find example/android -path '*outputs/apk/release/*.apk' | head -n1)" "out/pager-release-${{ matrix.arch }}.apk"
           unzip -l "out/pager-release-${{ matrix.arch }}.apk" | grep -E 'lib/|assets/' | head -60
+          unzip -l "out/pager-release-${{ matrix.arch }}.apk" | grep -q 'assets/main.android.jsbundle' || { echo "no JS bundle in APK"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -61,6 +72,13 @@ jobs:
 
       - name: Install example dependencies
         run: bun install
+        working-directory: example
+
+      # Same as their ios.yml "Bundle app" step (react-native bundle --dev false -> dist/main.ios.jsbundle)
+      - name: Bundle JS (Release)
+        run: |
+          bun build:ios
+          ls -la dist
         working-directory: example
 
       - name: Install example Pods
@@ -91,6 +109,7 @@ jobs:
           APP=$(find example/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -n1)
           echo "APP=$APP"
           ls -la "$APP"
+          ls -la "$APP" | grep -i jsbundle || { echo "no jsbundle in app"; exit 1; }
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
           ditto -c -k --keepParent "$APP" "out/$(basename "$APP" .app)-Release-iphonesimulator.app.zip"
 
